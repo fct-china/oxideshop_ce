@@ -9,11 +9,10 @@ declare(strict_types=1);
 
 namespace OxidEsales\EshopCommunity\Internal\Framework\Module\Install\Service;
 
-use OxidEsales\EshopCommunity\Internal\Framework\FileSystem\FinderFactoryInterface;
+use OxidEsales\EshopCommunity\Internal\Framework\Module\MetaData\Dao\ModuleConfigurationDaoInterface;
 use OxidEsales\EshopCommunity\Internal\Transition\Utility\BasicContextInterface;
 use OxidEsales\EshopCommunity\Internal\Framework\Module\Install\DataObject\OxidEshopPackage;
 use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Finder\Finder;
 use Webmozart\PathUtil\Path;
 
 class ModuleFilesInstaller implements ModuleFilesInstallerInterface
@@ -25,24 +24,18 @@ class ModuleFilesInstaller implements ModuleFilesInstallerInterface
     private $fileSystemService;
 
     /**
-     * @var FinderFactoryInterface
+     * @var ModuleConfigurationDaoInterface
      */
-    private $finderFactory;
+    private $moduleConfigurationDao;
 
-    /**
-     * ModuleFilesInstaller constructor.
-     * @param BasicContextInterface  $context
-     * @param Filesystem             $fileSystemService
-     * @param FinderFactoryInterface $finderFactory
-     */
     public function __construct(
         BasicContextInterface $context,
         Filesystem $fileSystemService,
-        FinderFactoryInterface $finderFactory
+        ModuleConfigurationDaoInterface $moduleConfigurationData
     ) {
         $this->context = $context;
         $this->fileSystemService = $fileSystemService;
-        $this->finderFactory = $finderFactory;
+        $this->moduleConfigurationDao = $moduleConfigurationData;
     }
 
     /**
@@ -50,13 +43,10 @@ class ModuleFilesInstaller implements ModuleFilesInstallerInterface
      */
     public function install(OxidEshopPackage $package): void
     {
-        $finder = $this->getModuleSourcePathFinder($package->getPackageSourcePath());
-
-        $this->fileSystemService->mirror(
-            $package->getPackageSourcePath(),
-            $this->getTargetPath($package),
-            $finder,
-            ['override' => true]
+        $this->fileSystemService->symlink(
+            Path::join($package->getPackagePath(), 'assets'),
+            $this->getModuleAssetsPath($package),
+            true
         );
     }
 
@@ -65,7 +55,7 @@ class ModuleFilesInstaller implements ModuleFilesInstallerInterface
      */
     public function uninstall(OxidEshopPackage $package): void
     {
-        $this->fileSystemService->remove($this->getTargetPath($package));
+        $this->fileSystemService->remove($this->getModuleAssetsPath($package));
     }
 
     /**
@@ -74,30 +64,24 @@ class ModuleFilesInstaller implements ModuleFilesInstallerInterface
      */
     public function isInstalled(OxidEshopPackage $package): bool
     {
-        return $this->fileSystemService->exists($this->getTargetPath($package));
+        return is_link($this->getModuleAssetsPath($package));
     }
 
-    /**
-     * @param string $sourceDirectory
-     *
-     * @return Finder
-     */
-    private function getModuleSourcePathFinder(string $sourceDirectory): Finder
+    private function getModuleAssetsPath(OxidEshopPackage $package): string
     {
-        $finder = $this->finderFactory->create();
-        $finder->in($sourceDirectory);
-
-        return $finder;
+        return Path::join(
+            $this->context->getOutPath(),
+            'modules',
+            $this->getModuleId($package),
+            'assets'
+        );
     }
 
-    /**
-     * @param OxidEshopPackage $package
-     *
-     * @return string
-     */
-    private function getTargetPath(OxidEshopPackage $package): string
+    private function getModuleId(OxidEshopPackage $package): string
     {
-        $targetDirectory = $package->getTargetDirectory();
-        return Path::join($this->context->getModulesPath(), $targetDirectory);
+        return $this
+            ->moduleConfigurationDao
+            ->get($package->getPackagePath())
+            ->getId();
     }
 }
