@@ -10,16 +10,13 @@ declare(strict_types=1);
 namespace OxidEsales\EshopCommunity\Internal\Framework\Module\Install\Service;
 
 use OxidEsales\EshopCommunity\Internal\Framework\Module\MetaData\Dao\ModuleConfigurationDaoInterface;
-use OxidEsales\EshopCommunity\Internal\Transition\Utility\BasicContextInterface;
+use OxidEsales\EshopCommunity\Internal\Framework\Module\Path\ModuleAssetsPathResolverInterface;
 use OxidEsales\EshopCommunity\Internal\Framework\Module\Install\DataObject\OxidEshopPackage;
 use Symfony\Component\Filesystem\Filesystem;
 use Webmozart\PathUtil\Path;
 
 class ModuleFilesInstaller implements ModuleFilesInstallerInterface
 {
-    /** @var BasicContextInterface $context */
-    private $context;
-
     /** @var Filesystem $fileSystemService */
     private $fileSystemService;
 
@@ -28,14 +25,19 @@ class ModuleFilesInstaller implements ModuleFilesInstallerInterface
      */
     private $moduleConfigurationDao;
 
+    /**
+     * @var ModuleAssetsPathResolverInterface
+     */
+    private $moduleAssetsPathResolver;
+
     public function __construct(
-        BasicContextInterface $context,
         Filesystem $fileSystemService,
-        ModuleConfigurationDaoInterface $moduleConfigurationData
+        ModuleConfigurationDaoInterface $moduleConfigurationDao,
+        ModuleAssetsPathResolverInterface $moduleAssetsPathResolver
     ) {
-        $this->context = $context;
         $this->fileSystemService = $fileSystemService;
-        $this->moduleConfigurationDao = $moduleConfigurationData;
+        $this->moduleConfigurationDao = $moduleConfigurationDao;
+        $this->moduleAssetsPathResolver = $moduleAssetsPathResolver;
     }
 
     /**
@@ -69,12 +71,7 @@ class ModuleFilesInstaller implements ModuleFilesInstallerInterface
 
     private function getModuleAssetsPath(OxidEshopPackage $package): string
     {
-        return Path::join(
-            $this->context->getOutPath(),
-            'modules',
-            $this->getModuleId($package),
-            'assets'
-        );
+        return $this->moduleAssetsPathResolver->getAssetsPath($this->getModuleId($package));
     }
 
     private function getModuleId(OxidEshopPackage $package): string
